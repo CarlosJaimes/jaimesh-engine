@@ -36,9 +36,16 @@ class PackageVariant:
     name: str
     cargo_bin: str
     executable_stem: str
+    code_mode_host_stem: str = "codex-code-mode-host"
+    package_metadata_name: str = "codex-package.json"
+    resources_dirname: str = "codex-resources"
+    path_dirname: str = "codex-path"
 
     def entrypoint_name(self, spec: TargetSpec) -> str:
         return f"{self.executable_stem}{spec.exe_suffix}"
+
+    def code_mode_host_name(self, spec: TargetSpec) -> str:
+        return f"{self.code_mode_host_stem}{spec.exe_suffix}"
 
 
 @dataclass(frozen=True)
@@ -53,6 +60,15 @@ class PackageInputs:
 
 
 PACKAGE_VARIANTS: dict[str, PackageVariant] = {
+    "jaimesh": PackageVariant(
+        name="jaimesh",
+        cargo_bin="jaimesh",
+        executable_stem="jaimesh",
+        code_mode_host_stem="jaimesh-code-mode-host",
+        package_metadata_name="jaimesh-package.json",
+        resources_dirname="jaimesh-resources",
+        path_dirname="jaimesh-path",
+    ),
     "codex": PackageVariant(
         name="codex",
         cargo_bin="codex",

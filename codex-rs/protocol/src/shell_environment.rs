@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 pub const CODEX_SESSION_ID_ENV_VAR: &str = "CODEX_SESSION_ID";
 pub const CODEX_THREAD_ID_ENV_VAR: &str = "CODEX_THREAD_ID";
+pub const JAIMESH_THREAD_ID_ENV_VAR: &str = "JAIMESH_THREAD_ID";
 pub const CODEX_EXEC_SERVER_NOISE_AUTH_TOKEN_ENV_VAR: &str = "CODEX_EXEC_SERVER_NOISE_AUTH_TOKEN";
 pub const OPENAI_FEDERATION_RULE_ID_ENV_VAR: &str = "OPENAI_FEDERATION_RULE_ID";
 pub const OPENAI_IDENTITY_TOKEN_FILE_ENV_VAR: &str = "OPENAI_IDENTITY_TOKEN_FILE";
@@ -95,6 +96,25 @@ pub fn populate_env<I>(
 where
     I: IntoIterator<Item = (String, String)>,
 {
+    populate_env_for_product(vars, policy, thread_id, is_jaimesh_process())
+}
+
+fn is_jaimesh_process() -> bool {
+    std::env::current_exe()
+        .ok()
+        .and_then(|path| path.file_stem().map(|stem| stem == "jaimesh"))
+        .unwrap_or(false)
+}
+
+fn populate_env_for_product<I>(
+    vars: I,
+    policy: &ShellEnvironmentPolicy,
+    thread_id: Option<&str>,
+    is_jaimesh: bool,
+) -> HashMap<String, String>
+where
+    I: IntoIterator<Item = (String, String)>,
+{
     // Step 1 - determine the starting set of variables based on the
     // `inherit` strategy.
     let mut env_map: HashMap<String, String> = match policy.inherit {
@@ -147,9 +167,19 @@ where
         env_map.retain(|k, _| matches_any(k, &policy.include_only));
     }
 
-    // Step 6 - Populate the thread ID environment variable when provided.
+    // Step 6 - Keep upstream launch variables out of JaiMesh child processes.
+    if is_jaimesh {
+        env_map.retain(|name, _| !name.to_ascii_uppercase().starts_with("CODEX_"));
+    }
+
+    // Populate the thread ID environment variable when provided.
     if let Some(thread_id) = thread_id {
-        env_map.insert(CODEX_THREAD_ID_ENV_VAR.to_string(), thread_id.to_string());
+        let key = if is_jaimesh {
+            JAIMESH_THREAD_ID_ENV_VAR
+        } else {
+            CODEX_THREAD_ID_ENV_VAR
+        };
+        env_map.insert(key.to_string(), thread_id.to_string());
     }
 
     // Restricted launch context cannot be restored through user-provided shell
@@ -318,5 +348,31 @@ mod non_windows_tests {
         ]);
 
         assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn jaimesh_child_env_omits_upstream_identity_variables() {
+        let vars = make_vars(&[
+            ("CODEX_HOME", "/old"),
+            ("Codex_Session_ID", "old-session"),
+            ("JAIMESH_HOME", "/new"),
+            ("PATH", "/usr/bin"),
+        ]);
+        let policy = ShellEnvironmentPolicy {
+            inherit: ShellEnvironmentPolicyInherit::All,
+            ..Default::default()
+        };
+
+        let result = populate_env_for_product(vars, &policy, Some("thread-1"), true);
+        assert_eq!(result.get("JAIMESH_HOME"), Some(&"/new".to_string()));
+        assert_eq!(
+            result.get("JAIMESH_THREAD_ID"),
+            Some(&"thread-1".to_string())
+        );
+        assert!(
+            !result
+                .keys()
+                .any(|key| key.to_ascii_uppercase().starts_with("CODEX_"))
+        );
     }
 }

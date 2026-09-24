@@ -18,10 +18,12 @@ use crate::codex_thread::BackgroundTerminalInfo;
 use crate::exec_env::CODEX_PERMISSION_PROFILE_ENV_VAR;
 use crate::exec_env::CODEX_THREAD_ID_ENV_VAR;
 use crate::exec_env::CODEX_VERSION_ENV_VAR;
+use crate::exec_env::JAIMESH_THREAD_ID_ENV_VAR;
 use crate::exec_env::create_env;
 use crate::exec_env::inject_apply_patch_env;
 use crate::exec_env::inject_permission_profile_env;
 use crate::exec_env::inject_session_env;
+use crate::exec_env::is_jaimesh_process;
 use crate::exec_policy::ExecApprovalRequest;
 use crate::guardian::GuardianReviewContext;
 use crate::plugins::metrics::finish_and_track_measurements;
@@ -89,7 +91,7 @@ use codex_tools::ToolName;
 use codex_utils_output_truncation::approx_tokens_from_byte_count;
 use codex_utils_path_uri::PathUri;
 
-const UNIFIED_EXEC_ENV: [(&str, &str); 10] = [
+const UNIFIED_EXEC_ENV: [(&str, &str); 9] = [
     ("NO_COLOR", "1"),
     ("TERM", "dumb"),
     ("LANG", "C.UTF-8"),
@@ -99,7 +101,6 @@ const UNIFIED_EXEC_ENV: [(&str, &str); 10] = [
     ("PAGER", "cat"),
     ("GIT_PAGER", "cat"),
     ("GH_PAGER", "cat"),
-    ("CODEX_CI", "1"),
 ];
 const NETWORK_ACCESS_DENIED_MESSAGE: &str =
     "Network access was denied by the Codex sandbox network proxy.";
@@ -129,6 +130,15 @@ pub(super) fn apply_unified_exec_env(mut env: HashMap<String, String>) -> HashMa
     for (key, value) in UNIFIED_EXEC_ENV {
         env.insert(key.to_string(), value.to_string());
     }
+    env.insert(
+        if is_jaimesh_process() {
+            "JAIMESH_CI"
+        } else {
+            "CODEX_CI"
+        }
+        .to_string(),
+        "1".to_string(),
+    );
     env
 }
 
@@ -1449,7 +1459,12 @@ impl UnifiedExecProcessManager {
         let local_policy_env = create_env(shell_environment_policy, /*thread_id*/ None);
         let mut env = local_policy_env.clone();
         env.insert(
-            CODEX_THREAD_ID_ENV_VAR.to_string(),
+            if is_jaimesh_process() {
+                JAIMESH_THREAD_ID_ENV_VAR
+            } else {
+                CODEX_THREAD_ID_ENV_VAR
+            }
+            .to_string(),
             context.session.thread_id.to_string(),
         );
         inject_session_env(&mut env, context.session.session_id());

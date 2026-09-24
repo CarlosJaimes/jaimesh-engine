@@ -65,6 +65,11 @@ impl WidgetRef for &TrustDirectoryWidget {
                 "Config, hooks, and exec policies from untrusted folders stay disabled. \
                  Trusted project folders can still contribute settings. Skills still load, \
                  and tools follow your permission settings. Opening will not change saved trust."
+            } else if crate::is_jaimesh_process() {
+                "Trust this folder? JaiMesh can read, edit, and run files here, subject to \
+                 your permission settings. Folder settings can run code automatically, \
+                 even without a model request. Continue only if you trust these files. \
+                 Your trust decision will be saved."
             } else {
                 "Trust this folder? Codex can read, edit, and run files here, subject to \
                  your permission settings. Folder settings can run code automatically, \

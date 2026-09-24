@@ -56,7 +56,31 @@ pub fn with_config_overrides(mut model: ModelInfo, config: &ModelsManagerConfig)
         *instructions_template = strip_personality_section(std::mem::take(instructions_template));
     }
 
+    if config.base_instructions.is_none()
+        && std::env::current_exe()
+            .ok()
+            .and_then(|path| path.file_stem().map(|stem| stem == "jaimesh"))
+            .unwrap_or(false)
+        && let Some(instructions_template) = model
+            .model_messages
+            .as_mut()
+            .and_then(|messages| messages.instructions_template.as_mut())
+    {
+        *instructions_template = jaimesh_instructions(std::mem::take(instructions_template));
+    }
+
     model
+}
+
+fn jaimesh_instructions(instructions: String) -> String {
+    instructions
+        .replace("You are Codex", "You are JaiMesh")
+        .replace("As Codex", "As JaiMesh")
+        .replace("$CODEX_HOME", "$JAIMESH_HOME")
+        .replace(
+            "An app is equivalent to a set of MCP tools within the `codex_apps` MCP.\n",
+            "",
+        )
 }
 
 fn strip_personality_section(mut instructions: String) -> String {

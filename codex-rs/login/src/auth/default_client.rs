@@ -40,6 +40,21 @@ use crate::outbound_proxy::AuthRouteConfig;
 /// Parenthesis will be added by Codex. This should only specify what goes inside of the parenthesis.
 pub static USER_AGENT_SUFFIX: LazyLock<Mutex<Option<String>>> = LazyLock::new(|| Mutex::new(None));
 pub const DEFAULT_ORIGINATOR: &str = "codex_cli_rs";
+
+fn default_originator_for_process() -> &'static str {
+    if is_jaimesh_process() {
+        "jaimesh_cli"
+    } else {
+        DEFAULT_ORIGINATOR
+    }
+}
+
+fn is_jaimesh_process() -> bool {
+    std::env::current_exe()
+        .ok()
+        .and_then(|path| path.file_stem().map(|stem| stem == "jaimesh"))
+        .unwrap_or(false)
+}
 pub const CODEX_INTERNAL_ORIGINATOR_OVERRIDE_ENV_VAR: &str = "CODEX_INTERNAL_ORIGINATOR_OVERRIDE";
 pub use codex_model_provider_info::RESIDENCY_HEADER_NAME;
 pub use codex_model_provider_info::ResidencyRequirement;
@@ -62,10 +77,11 @@ pub enum SetOriginatorError {
 }
 
 fn get_originator_value(provided: Option<String>) -> Originator {
-    let value = std::env::var(CODEX_INTERNAL_ORIGINATOR_OVERRIDE_ENV_VAR)
-        .ok()
+    let value = (!is_jaimesh_process())
+        .then(|| std::env::var(CODEX_INTERNAL_ORIGINATOR_OVERRIDE_ENV_VAR).ok())
+        .flatten()
         .or(provided)
-        .unwrap_or(DEFAULT_ORIGINATOR.to_string());
+        .unwrap_or_else(|| default_originator_for_process().to_string());
 
     match HeaderValue::from_str(&value) {
         Ok(header_value) => Originator {
@@ -75,8 +91,8 @@ fn get_originator_value(provided: Option<String>) -> Originator {
         Err(e) => {
             tracing::error!("Unable to turn originator override {value} into header value: {e}");
             Originator {
-                value: DEFAULT_ORIGINATOR.to_string(),
-                header_value: HeaderValue::from_static(DEFAULT_ORIGINATOR),
+                value: default_originator_for_process().to_string(),
+                header_value: HeaderValue::from_static(default_originator_for_process()),
             }
         }
     }
@@ -104,7 +120,7 @@ pub fn originator() -> Originator {
         return originator.clone();
     }
 
-    if std::env::var(CODEX_INTERNAL_ORIGINATOR_OVERRIDE_ENV_VAR).is_ok() {
+    if !is_jaimesh_process() && std::env::var(CODEX_INTERNAL_ORIGINATOR_OVERRIDE_ENV_VAR).is_ok() {
         let originator = get_originator_value(/*provided*/ None);
         if let Ok(mut guard) = ORIGINATOR.write() {
             match guard.as_ref() {
@@ -140,6 +156,8 @@ pub fn add_originator_header(headers: &mut HeaderMap, originator_value: &str) {
 
 pub fn is_first_party_originator(originator_value: &str) -> bool {
     originator_value == DEFAULT_ORIGINATOR
+        || originator_value == "jaimesh_cli"
+        || originator_value == "jaimesh_exec"
         || originator_value == "codex-tui"
         || originator_value == "codex_vscode"
         || originator_value.starts_with("Codex ")

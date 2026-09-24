@@ -143,6 +143,13 @@ use tracing::instrument;
 use tracing::warn;
 
 static CURATED_REPO_SYNC_STARTED: AtomicBool = AtomicBool::new(false);
+
+fn is_jaimesh_process() -> bool {
+    std::env::current_exe()
+        .ok()
+        .and_then(|path| path.file_stem().map(|stem| stem == "jaimesh"))
+        .unwrap_or(false)
+}
 const FEATURED_PLUGIN_IDS_CACHE_TTL: std::time::Duration =
     std::time::Duration::from_secs(60 * 60 * 3);
 const REMOTE_INSTALLED_PLUGIN_SYNC_WAIT_TIMEOUT: Duration = Duration::from_secs(120);
@@ -2776,7 +2783,7 @@ impl PluginsManager {
         reload_config: ConfigLayerReload,
         on_effective_plugins_changed: Option<EffectivePluginsChangedCallback>,
     ) {
-        if config.plugins_enabled {
+        if config.plugins_enabled && !is_jaimesh_process() {
             self.maybe_start_curated_repo_sync_for_config(
                 config,
                 on_effective_plugins_changed.clone(),
@@ -3250,6 +3257,9 @@ impl PluginsManager {
         http_client_factory: HttpClientFactory,
         on_effective_plugins_changed: Option<EffectivePluginsChangedCallback>,
     ) {
+        if is_jaimesh_process() {
+            return;
+        }
         if CURATED_REPO_SYNC_STARTED.swap(true, Ordering::SeqCst) {
             return;
         }

@@ -410,6 +410,13 @@ impl HostSkillsService {
     }
 
     fn ensure_system_skills_installed(&self) {
+        if std::env::current_exe()
+            .ok()
+            .and_then(|path| path.file_stem().map(|stem| stem == "jaimesh"))
+            .unwrap_or(false)
+        {
+            return;
+        }
         if let Err(err) = install_system_skills(&self.codex_home) {
             tracing::error!("failed to install system skills: {err}");
         }

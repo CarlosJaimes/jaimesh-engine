@@ -127,6 +127,7 @@ where
 pub struct LogDbLayer {
     sender: mpsc::Sender<LogDbCommand>,
     process_uuid: String,
+    brand_logs: bool,
 }
 
 pub fn start(state_db: std::sync::Arc<StateRuntime>) -> LogDbLayer {
@@ -138,6 +139,7 @@ impl Clone for LogDbLayer {
         Self {
             sender: self.sender.clone(),
             process_uuid: self.process_uuid.clone(),
+            brand_logs: self.brand_logs,
         }
     }
 }
@@ -157,6 +159,11 @@ impl LogDbLayer {
         Self {
             sender,
             process_uuid: current_process_log_uuid().to_string(),
+            brand_logs: std::env::current_exe()
+                .ok()
+                .as_deref()
+                .and_then(std::path::Path::file_stem)
+                .is_some_and(|stem| stem == "jaimesh"),
         }
     }
 
@@ -297,8 +304,42 @@ where
             line: metadata.line().map(|line| line as i64),
         };
 
-        self.try_send(entry);
+        self.try_send(brand_log_entry(entry, self.brand_logs));
     }
+}
+
+// Tracing metadata is compiled from upstream crate and source names. Keep the
+// original target for filtering, then publish JaiMesh names in JaiMesh's local
+// diagnostic store. Message values stay intact so user output is not rewritten.
+fn brand_log_entry(mut entry: LogEntry, brand_logs: bool) -> LogEntry {
+    if !brand_logs {
+        return entry;
+    }
+    let rename_source = |value: String| {
+        value
+            .replace("codex", "jaimesh")
+            .replace("Codex", "JaiMesh")
+            .replace("CODEX", "JAIMESH")
+    };
+    entry.target = rename_source(entry.target);
+    entry.module_path = entry.module_path.map(&rename_source);
+    entry.file = entry.file.map(&rename_source);
+    entry.feedback_log_body = entry.feedback_log_body.map(|body| {
+        [
+            "codex.op",
+            "codex.turn.reasoning_effort",
+            "codex.request.reasoning_effort",
+            "codex_api_key",
+            "codex_home",
+            "codex_apps_mcp_2026_07_28",
+            "codex_git_commit",
+        ]
+        .into_iter()
+        .fold(body, |body, identifier| {
+            body.replace(identifier, &identifier.replacen("codex", "jaimesh", 1))
+        })
+    });
+    entry
 }
 
 impl<S> LogWriter<S> for LogDbLayer
@@ -559,6 +600,35 @@ mod tests {
     use tracing_subscriber::util::SubscriberInitExt;
 
     use super::*;
+
+    #[test]
+    fn jaimesh_log_identity_uses_product_names_and_preserves_message() {
+        let entry = LogEntry {
+            target: "codex_core::session".to_string(),
+            module_path: Some("codex_core::session".to_string()),
+            file: Some("codex-rs/core/src/session.rs".to_string()),
+            feedback_log_body: Some("codex.op=turn_input codex_git_commit=false".to_string()),
+            ..test_entry("The user wrote Codex in the project")
+        };
+        let branded = brand_log_entry(entry, true);
+        assert_eq!(branded.target, "jaimesh_core::session");
+        assert_eq!(
+            branded.module_path.as_deref(),
+            Some("jaimesh_core::session")
+        );
+        assert_eq!(
+            branded.file.as_deref(),
+            Some("jaimesh-rs/core/src/session.rs")
+        );
+        assert_eq!(
+            branded.feedback_log_body.as_deref(),
+            Some("jaimesh.op=turn_input jaimesh_git_commit=false")
+        );
+        assert_eq!(
+            branded.message.as_deref(),
+            Some("The user wrote Codex in the project")
+        );
+    }
 
     fn temp_codex_home() -> std::path::PathBuf {
         std::env::temp_dir().join(format!("codex-state-log-db-{}", Uuid::new_v4()))
@@ -828,6 +898,7 @@ mod tests {
         let layer = LogDbLayer {
             sender,
             process_uuid: "process-1".to_string(),
+            brand_logs: false,
         };
 
         layer.try_send(test_entry("first-queued-log"));
@@ -848,6 +919,7 @@ mod tests {
         let layer = LogDbLayer {
             sender,
             process_uuid: "process-1".to_string(),
+            brand_logs: false,
         };
 
         layer.try_send(test_entry("queued-before-flush"));

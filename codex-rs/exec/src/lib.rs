@@ -240,12 +240,32 @@ struct ManagedExecWorktree {
 }
 
 fn exec_root_span() -> tracing::Span {
+    if cli_originator() == "jaimesh_exec" {
+        return info_span!(
+            "jaimesh.exec",
+            otel.kind = "internal",
+            thread.id = field::Empty,
+            turn.id = field::Empty,
+        );
+    }
     info_span!(
         "codex.exec",
         otel.kind = "internal",
         thread.id = field::Empty,
         turn.id = field::Empty,
     )
+}
+
+pub(crate) fn cli_originator() -> &'static str {
+    if std::env::current_exe()
+        .ok()
+        .and_then(|path| path.file_stem().map(|stem| stem == "jaimesh"))
+        .unwrap_or(false)
+    {
+        "jaimesh_exec"
+    } else {
+        "codex_exec"
+    }
 }
 
 fn exec_stderr_env_filter() -> EnvFilter {
@@ -257,8 +277,8 @@ fn exec_stderr_env_filter() -> EnvFilter {
 }
 
 pub async fn run_main(cli: Cli, arg0_paths: Arg0DispatchPaths) -> anyhow::Result<()> {
-    if let Err(err) = set_default_originator("codex_exec".to_string()) {
-        tracing::warn!(?err, "Failed to set codex exec originator override {err:?}");
+    if let Err(err) = set_default_originator(cli_originator().to_string()) {
+        tracing::warn!(?err, "Failed to set CLI originator override {err:?}");
     }
 
     let Cli {
@@ -659,8 +679,8 @@ pub async fn run_main(cli: Cli, arg0_paths: Arg0DispatchPaths) -> anyhow::Result
             None
         }
     };
-    codex_core::otel_init::record_process_start(otel.as_ref(), "codex_exec");
-    codex_core::otel_init::install_sqlite_telemetry(otel.as_ref(), "codex_exec");
+    codex_core::otel_init::record_process_start(otel.as_ref(), cli_originator());
+    codex_core::otel_init::install_sqlite_telemetry(otel.as_ref(), cli_originator());
 
     let otel_logger_layer = otel.as_ref().and_then(|o| o.logger_layer());
 
@@ -724,7 +744,7 @@ pub async fn run_main(cli: Cli, arg0_paths: Arg0DispatchPaths) -> anyhow::Result
         config_warnings,
         session_source: SessionSource::Exec,
         enable_codex_api_key_env: true,
-        client_name: "codex_exec".to_string(),
+        client_name: cli_originator().to_string(),
         client_version: env!("CARGO_PKG_VERSION").to_string(),
         experimental_api: true,
         mcp_server_openai_form_elicitation: false,

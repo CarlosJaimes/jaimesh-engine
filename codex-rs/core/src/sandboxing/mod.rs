@@ -168,14 +168,21 @@ impl ExecRequest {
         };
         let network_sandbox_policy = permission_profile.network_sandbox_policy();
         if !network_sandbox_policy.is_enabled() {
-            env.insert(
-                CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR.to_string(),
-                "1".to_string(),
-            );
+            let key = if crate::exec_env::is_jaimesh_process() {
+                crate::spawn::JAIMESH_SANDBOX_NETWORK_DISABLED_ENV_VAR
+            } else {
+                CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR
+            };
+            env.insert(key.to_string(), "1".to_string());
         }
         #[cfg(target_os = "macos")]
         if sandbox == SandboxType::MacosSeatbelt {
-            env.insert(CODEX_SANDBOX_ENV_VAR.to_string(), "seatbelt".to_string());
+            let key = if crate::exec_env::is_jaimesh_process() {
+                crate::spawn::JAIMESH_SANDBOX_ENV_VAR
+            } else {
+                CODEX_SANDBOX_ENV_VAR
+            };
+            env.insert(key.to_string(), "seatbelt".to_string());
         }
         Ok(Self {
             command,

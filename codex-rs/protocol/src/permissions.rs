@@ -36,6 +36,19 @@ pub use windows_glob::windows_deny_read_glob_scan;
 const PROTECTED_METADATA_GIT_PATH_NAME: &str = ".git";
 const PROTECTED_METADATA_AGENTS_PATH_NAME: &str = ".agents";
 const PROTECTED_METADATA_CODEX_PATH_NAME: &str = ".codex";
+const PROTECTED_METADATA_JAIMESH_PATH_NAME: &str = ".jaimesh";
+
+fn active_agent_metadata_path_name() -> &'static str {
+    if std::env::current_exe()
+        .ok()
+        .and_then(|path| path.file_stem().map(|stem| stem == "jaimesh"))
+        .unwrap_or(false)
+    {
+        PROTECTED_METADATA_JAIMESH_PATH_NAME
+    } else {
+        PROTECTED_METADATA_CODEX_PATH_NAME
+    }
+}
 
 /// Top-level workspace metadata paths that stay protected under writable roots.
 pub const PROTECTED_METADATA_PATH_NAMES: &[&str] = &[
@@ -46,9 +59,10 @@ pub const PROTECTED_METADATA_PATH_NAMES: &[&str] = &[
 
 /// Returns true when a path basename is one of the protected workspace metadata names.
 pub fn is_protected_metadata_name(name: &OsStr) -> bool {
-    PROTECTED_METADATA_PATH_NAMES
-        .iter()
-        .any(|metadata_name| name == OsStr::new(metadata_name))
+    name == OsStr::new(PROTECTED_METADATA_JAIMESH_PATH_NAME)
+        || PROTECTED_METADATA_PATH_NAMES
+            .iter()
+            .any(|metadata_name| name == OsStr::new(metadata_name))
 }
 
 /// Returns the protected workspace metadata name when an agent write to `path`
@@ -847,7 +861,10 @@ impl FileSystemSandboxPolicy {
 
         append_default_read_only_project_root_subpath_if_no_explicit_rule(&mut entries, ".git");
         append_default_read_only_project_root_subpath_if_no_explicit_rule(&mut entries, ".agents");
-        append_default_read_only_project_root_subpath_if_no_explicit_rule(&mut entries, ".codex");
+        append_default_read_only_project_root_subpath_if_no_explicit_rule(
+            &mut entries,
+            active_agent_metadata_path_name(),
+        );
         for writable_root in writable_roots {
             for protected_path in default_read_only_subpaths_for_writable_root(
                 writable_root,
@@ -2260,9 +2277,16 @@ pub(crate) fn default_read_only_subpaths_for_writable_root(
     // default. For the workspace root itself, protect it even before the
     // directory exists so first-time creation still goes through the
     // protected-path approval flow.
-    let top_level_codex = writable_root.join(PROTECTED_METADATA_CODEX_PATH_NAME);
-    if protect_missing_dot_codex || top_level_codex.as_path().is_dir() {
-        subpaths.push(top_level_codex);
+    for metadata_name in [
+        PROTECTED_METADATA_CODEX_PATH_NAME,
+        PROTECTED_METADATA_JAIMESH_PATH_NAME,
+    ] {
+        let metadata_path = writable_root.join(metadata_name);
+        if (protect_missing_dot_codex && metadata_name == active_agent_metadata_path_name())
+            || metadata_path.as_path().is_dir()
+        {
+            subpaths.push(metadata_path);
+        }
     }
 
     dedup_absolute_paths(subpaths, /*normalize_effective_paths*/ false)

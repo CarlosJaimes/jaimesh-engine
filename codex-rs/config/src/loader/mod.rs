@@ -77,6 +77,8 @@ pub use windows::probe_windows_system_config_namespace;
 
 #[cfg(unix)]
 const SYSTEM_CONFIG_TOML_FILE_UNIX: &str = "/etc/codex/config.toml";
+#[cfg(unix)]
+const JAIMESH_SYSTEM_CONFIG_TOML_FILE_UNIX: &str = "/etc/jaimesh/config.toml";
 
 #[cfg(windows)]
 const DEFAULT_PROGRAM_DATA_DIR_WINDOWS: &str = r"C:\ProgramData";
@@ -722,7 +724,12 @@ pub async fn load_requirements_toml(
 
 #[cfg(unix)]
 fn system_requirements_toml_file() -> io::Result<AbsolutePathBuf> {
-    AbsolutePathBuf::from_absolute_path(Path::new("/etc/codex/requirements.toml"))
+    let path = if is_jaimesh_process() {
+        "/etc/jaimesh/requirements.toml"
+    } else {
+        "/etc/codex/requirements.toml"
+    };
+    AbsolutePathBuf::from_absolute_path(Path::new(path))
 }
 
 #[cfg(windows)]
@@ -777,7 +784,12 @@ fn has_local_managed_configuration_with_system_requirements_path(
 
 #[cfg(unix)]
 pub fn system_config_toml_file() -> io::Result<AbsolutePathBuf> {
-    AbsolutePathBuf::from_absolute_path(Path::new(SYSTEM_CONFIG_TOML_FILE_UNIX))
+    let path = if is_jaimesh_process() {
+        JAIMESH_SYSTEM_CONFIG_TOML_FILE_UNIX
+    } else {
+        SYSTEM_CONFIG_TOML_FILE_UNIX
+    };
+    AbsolutePathBuf::from_absolute_path(Path::new(path))
 }
 
 #[cfg(windows)]
@@ -1112,8 +1124,27 @@ impl ProjectTrustContext {
         }
 
         let relative_dir = dir.as_path().strip_prefix(checkout_root.as_path()).ok()?;
-        Some(repo_root.join(relative_dir).join(".codex"))
+        Some(
+            repo_root
+                .join(relative_dir)
+                .join(project_metadata_dirname()),
+        )
     }
+}
+
+fn project_metadata_dirname() -> &'static str {
+    if is_jaimesh_process() {
+        ".jaimesh"
+    } else {
+        ".codex"
+    }
+}
+
+fn is_jaimesh_process() -> bool {
+    std::env::current_exe()
+        .ok()
+        .and_then(|path| path.file_stem().map(|stem| stem == "jaimesh"))
+        .unwrap_or(false)
 }
 
 fn project_layer_entry(
@@ -1664,7 +1695,7 @@ async fn discover_project_layers(
     let mut layers = Vec::new();
     let mut startup_warnings = Vec::new();
     for dir in dirs {
-        let dot_codex_abs = dir.join(".codex");
+        let dot_codex_abs = dir.join(project_metadata_dirname());
         let dot_codex_uri = PathUri::from_abs_path(&dot_codex_abs);
         if !fs
             .get_metadata(&dot_codex_uri, Default::default(), /*sandbox*/ None)

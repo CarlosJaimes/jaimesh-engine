@@ -4,6 +4,30 @@
 #![recursion_limit = "256"]
 #![deny(clippy::print_stdout, clippy::print_stderr)]
 #![deny(clippy::disallowed_methods)]
+
+pub(crate) fn is_jaimesh_process() -> bool {
+    std::env::current_exe()
+        .ok()
+        .and_then(|path| path.file_stem().map(|stem| stem == "jaimesh"))
+        .unwrap_or(false)
+}
+
+pub(crate) fn prompt_placeholder() -> &'static str {
+    if is_jaimesh_process() {
+        "Ask JaiMesh to do anything"
+    } else {
+        "Ask Codex to do anything"
+    }
+}
+
+pub(crate) fn display_name() -> &'static str {
+    if is_jaimesh_process() {
+        "JaiMesh"
+    } else {
+        "OpenAI Codex"
+    }
+}
+
 use crate::legacy_core::config::Config;
 use crate::legacy_core::config::ConfigBuilder;
 use crate::legacy_core::config::ConfigOverrides;

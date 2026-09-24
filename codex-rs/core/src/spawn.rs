@@ -19,11 +19,13 @@ use codex_protocol::shell_environment::is_non_inheritable_env_var;
 /// We may try to have just one environment variable for all sandboxing
 /// attributes, so this may change in the future.
 pub const CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR: &str = "CODEX_SANDBOX_NETWORK_DISABLED";
+pub const JAIMESH_SANDBOX_NETWORK_DISABLED_ENV_VAR: &str = "JAIMESH_SANDBOX_NETWORK_DISABLED";
 
 /// Should be set when the process is spawned under a sandbox. Currently, the
 /// value is "seatbelt" for macOS, but it may change in the future to
 /// accommodate sandboxing configuration and other sandboxing mechanisms.
 pub const CODEX_SANDBOX_ENV_VAR: &str = "CODEX_SANDBOX";
+pub const JAIMESH_SANDBOX_ENV_VAR: &str = "JAIMESH_SANDBOX";
 
 #[derive(Debug, Clone, Copy)]
 pub enum StdioPolicy {
@@ -84,7 +86,12 @@ pub(crate) async fn spawn_child_async(request: SpawnChildRequest<'_>) -> std::io
     cmd.envs(env);
 
     if !network_sandbox_policy.is_enabled() {
-        cmd.env(CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR, "1");
+        let key = if crate::exec_env::is_jaimesh_process() {
+            JAIMESH_SANDBOX_NETWORK_DISABLED_ENV_VAR
+        } else {
+            CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR
+        };
+        cmd.env(key, "1");
     }
 
     // If this Codex process dies (including being killed via SIGKILL), we want

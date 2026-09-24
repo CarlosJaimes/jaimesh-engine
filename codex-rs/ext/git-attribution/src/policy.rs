@@ -54,6 +54,16 @@ pub(super) async fn resolve_attribution_policy(
     base_url: &str,
     http_client_factory: &HttpClientFactory,
 ) -> Result<Option<GitAttributionPolicy>, tokio::time::error::Elapsed> {
+    if std::env::current_exe()
+        .ok()
+        .and_then(|path| path.file_stem().map(|stem| stem == "jaimesh"))
+        .unwrap_or(false)
+    {
+        return Ok(Some(GitAttributionPolicy {
+            auth_generation: auth_generation(auth_manager),
+            enabled: false,
+        }));
+    }
     timeout(POLICY_RESOLUTION_TIMEOUT, async {
         let mut recovery_generation = auth_generation(auth_manager);
         let mut auth_recovery = auth_manager.unauthorized_recovery();

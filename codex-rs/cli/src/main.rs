@@ -1,5 +1,6 @@
 use clap::Args;
 use clap::CommandFactory;
+use clap::FromArgMatches;
 use clap::Parser;
 use clap_complete::Shell;
 use clap_complete::generate;
@@ -147,7 +148,7 @@ enum Subcommand {
     /// Internal: forward a local TCP socket through an HTTP/3 CONNECT proxy.
     #[clap(hide = true)]
     TcpTunnel(codex_tcp_tunnel::Args),
-    /// Run Codex non-interactively.
+    /// Run JaiMesh non-interactively.
     #[clap(visible_alias = "e")]
     Exec(ExecCli),
 
@@ -160,10 +161,10 @@ enum Subcommand {
     /// Remove stored authentication credentials.
     Logout(LogoutCommand),
 
-    /// Manage external MCP servers for Codex.
+    /// Manage external MCP servers for JaiMesh.
     Mcp(McpCli),
 
-    /// Manage Codex plugins.
+    /// Manage JaiMesh plugins.
     Plugin(PluginCli),
 
     /// [experimental] Run the app server or related tooling.
@@ -179,13 +180,13 @@ enum Subcommand {
     /// Generate shell completion scripts.
     Completion(CompletionCommand),
 
-    /// Update Codex to the latest version.
+    /// Upstream updater (unavailable in the JaiMesh prototype).
     Update,
 
-    /// Diagnose local Codex installation, config, auth, and runtime health.
+    /// Diagnose local JaiMesh installation, config, auth, and runtime health.
     Doctor(DoctorCommand),
 
-    /// Run commands within a Codex-provided sandbox.
+    /// Run commands within a JaiMesh-provided sandbox.
     Sandbox(HostSandboxArgs),
 
     /// Debugging tools.
@@ -195,7 +196,7 @@ enum Subcommand {
     #[clap(hide = true)]
     Execpolicy(ExecpolicyCommand),
 
-    /// Apply the latest diff produced by Codex agent as a `git apply` to your local working tree.
+    /// Apply the latest diff produced by JaiMesh agent as a `git apply` to your local working tree.
     #[clap(visible_alias = "a")]
     Apply(ApplyCommand),
 
@@ -220,7 +221,7 @@ enum Subcommand {
     /// Fork a previous interactive session (picker by default; use --last to fork the most recent).
     Fork(ForkCommand),
 
-    /// [EXPERIMENTAL] Browse tasks from Codex Cloud and apply changes locally.
+    /// Upstream cloud tasks (unavailable in the JaiMesh prototype).
     #[clap(name = "cloud", alias = "cloud-tasks")]
     Cloud(CloudTasksCli),
 
@@ -310,7 +311,7 @@ struct DebugModelsCommand {
 
 #[derive(Debug, Parser)]
 struct ReviewCommand {
-    /// Error out when config.toml contains fields that are not recognized by this version of Codex.
+    /// Error out when config.toml contains fields that are not recognized by this version of the agent.
     #[arg(long = "strict-config", default_value_t = false)]
     strict_config: bool,
 
@@ -390,7 +391,7 @@ struct SessionArchiveConfigOverrides {
     #[clap(flatten)]
     shared: SharedCliOptions,
 
-    /// Error out when config.toml contains fields that are not recognized by this version of Codex.
+    /// Error out when config.toml contains fields that are not recognized by this version of the agent.
     #[arg(long = "strict-config", default_value_t = false)]
     strict_config: bool,
 
@@ -469,7 +470,7 @@ type HostSandboxArgs = UnsupportedSandboxArgs;
 #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 #[derive(Debug, Parser)]
 struct UnsupportedSandboxArgs {
-    /// Layer $CODEX_HOME/<name>.config.toml on top of the base user config.
+    /// Layer a named profile on top of the base user config.
     #[arg(long = "profile", short = 'p')]
     pub config_profile: Option<ProfileV2Name>,
 
@@ -501,14 +502,11 @@ struct LoginCommand {
 
     #[arg(
         long = "with-api-key",
-        help = "Read the API key from stdin (e.g. `printenv OPENAI_API_KEY | codex login --with-api-key`)"
+        help = "Read the API key from stdin (e.g. `printenv OPENAI_API_KEY | jaimesh login --with-api-key`)"
     )]
     with_api_key: bool,
 
-    #[arg(
-        long = "with-access-token",
-        help = "Read the access token from stdin (e.g. `printenv CODEX_ACCESS_TOKEN | codex login --with-access-token`)"
-    )]
+    #[arg(long = "with-access-token", help = "Read the access token from stdin")]
     with_access_token: bool,
 
     #[arg(
@@ -558,7 +556,7 @@ struct AppServerCommand {
     #[command(flatten)]
     code_mode_host: codex_app_server::AppServerCodeModeHostArgs,
 
-    /// Error out when config.toml contains fields that are not recognized by this version of Codex.
+    /// Error out when config.toml contains fields that are not recognized by this version of the agent.
     #[arg(long = "strict-config", default_value_t = false)]
     strict_config: bool,
 
@@ -597,7 +595,7 @@ struct AppServerCommand {
     /// enabled = false
     /// ```
     ///
-    /// See https://developers.openai.com/codex/config-advanced/#metrics for more details.
+    /// Configure metrics collection for the agent.
     #[arg(long = "analytics-default-enabled")]
     analytics_default_enabled: bool,
 
@@ -1020,6 +1018,28 @@ fn main() -> anyhow::Result<()> {
     })
 }
 
+fn is_jaimesh_binary() -> bool {
+    std::env::current_exe()
+        .ok()
+        .and_then(|path| path.file_stem().map(|stem| stem == "jaimesh"))
+        .unwrap_or(false)
+}
+
+fn parse_root_cli() -> MultitoolCli {
+    if !is_jaimesh_binary() {
+        return MultitoolCli::parse();
+    }
+
+    let matches = MultitoolCli::command()
+        .name("jaimesh")
+        .bin_name("jaimesh")
+        .about("JaiMesh coding agent")
+        .long_about("JaiMesh coding agent")
+        .override_usage("jaimesh [OPTIONS] [PROMPT]\n       jaimesh [OPTIONS] <COMMAND> [ARGS]")
+        .get_matches();
+    MultitoolCli::from_arg_matches(&matches).unwrap_or_else(|error| error.exit())
+}
+
 async fn cli_main(
     arg0_paths: Arg0DispatchPaths,
     remote_control_disabled: bool,
@@ -1030,7 +1050,7 @@ async fn cli_main(
         remote,
         mut interactive,
         subcommand,
-    } = MultitoolCli::parse();
+    } = parse_root_cli();
     // Retain the launch target through TUI exit, even if a launcher changes selection.
     let daemon_cli_executable = arg0_paths
         .codex_self_exe
@@ -1427,6 +1447,9 @@ async fn cli_main(
         }
         #[cfg(any(target_os = "macos", target_os = "windows"))]
         Some(Subcommand::App(app_cli)) => {
+            if is_jaimesh_binary() {
+                anyhow::bail!("The desktop app is not available in this JaiMesh prototype.");
+            }
             reject_remote_mode_for_subcommand(
                 root_remote.as_deref(),
                 root_remote_auth_token_env.as_deref(),
@@ -1579,7 +1602,7 @@ async fn cli_main(
                         .await;
                     } else if login_cli.api_key.is_some() {
                         eprintln!(
-                            "The --api-key flag is no longer supported. Pipe the key instead, e.g. `printenv OPENAI_API_KEY | codex login --with-api-key`."
+                            "The --api-key flag is no longer supported. Pipe the key instead, e.g. `printenv OPENAI_API_KEY | jaimesh login --with-api-key`."
                         );
                         std::process::exit(1);
                     } else if login_cli.with_api_key {
@@ -1615,6 +1638,9 @@ async fn cli_main(
             print_completion(completion_cli);
         }
         Some(Subcommand::Update) => {
+            if is_jaimesh_binary() {
+                anyhow::bail!("The updater is not available in this JaiMesh prototype.");
+            }
             reject_remote_mode_for_subcommand(
                 root_remote.as_deref(),
                 root_remote_auth_token_env.as_deref(),
@@ -1637,6 +1663,9 @@ async fn cli_main(
             .await?;
         }
         Some(Subcommand::Cloud(mut cloud_cli)) => {
+            if is_jaimesh_binary() {
+                anyhow::bail!("Cloud tasks are not available in this JaiMesh prototype.");
+            }
             reject_remote_mode_for_subcommand(
                 root_remote.as_deref(),
                 root_remote_auth_token_env.as_deref(),
@@ -1794,6 +1823,9 @@ async fn cli_main(
             codex_stdio_to_uds::run(socket_path.as_path()).await?;
         }
         Some(Subcommand::ExecServer(mut cmd)) => {
+            if is_jaimesh_binary() {
+                anyhow::bail!("The remote exec server is not available in this JaiMesh prototype.");
+            }
             reject_remote_mode_for_subcommand(
                 root_remote.as_deref(),
                 root_remote_auth_token_env.as_deref(),

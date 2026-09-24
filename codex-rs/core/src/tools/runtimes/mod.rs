@@ -8,10 +8,14 @@ use crate::exec_env::CODEX_PERMISSION_PROFILE_ENV_VAR;
 use crate::exec_env::CODEX_SESSION_ID_ENV_VAR;
 use crate::exec_env::CODEX_THREAD_ID_ENV_VAR;
 use crate::exec_env::CODEX_VERSION_ENV_VAR;
+use crate::exec_env::JAIMESH_PERMISSION_PROFILE_ENV_VAR;
+use crate::exec_env::JAIMESH_THREAD_ID_ENV_VAR;
+use crate::exec_env::JAIMESH_VERSION_ENV_VAR;
 use crate::sandboxing::SandboxPermissions;
 use crate::shell::Shell;
 use crate::shell::ShellType;
 use codex_apply_patch::CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR;
+use codex_apply_patch::JAIMESH_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR;
 use codex_core_plugins::PLUGIN_METRICS_OUTPUT_ENV_VAR;
 #[cfg(unix)]
 use codex_install_context::InstallContext;
@@ -355,6 +359,11 @@ pub(crate) fn maybe_wrap_shell_lc_with_snapshot(
         CODEX_VERSION_ENV_VAR,
         CODEX_PERMISSION_PROFILE_ENV_VAR,
         CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR,
+        "JAIMESH_SESSION_ID",
+        JAIMESH_THREAD_ID_ENV_VAR,
+        JAIMESH_VERSION_ENV_VAR,
+        JAIMESH_PERMISSION_PROFILE_ENV_VAR,
+        JAIMESH_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR,
         PLUGIN_METRICS_OUTPUT_ENV_VAR,
     ] {
         if let Some(value) = env.get(key) {
@@ -367,6 +376,8 @@ pub(crate) fn maybe_wrap_shell_lc_with_snapshot(
         &[
             CODEX_PERMISSION_PROFILE_ENV_VAR,
             CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR,
+            JAIMESH_PERMISSION_PROFILE_ENV_VAR,
+            JAIMESH_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR,
             PLUGIN_METRICS_OUTPUT_ENV_VAR,
         ],
     );

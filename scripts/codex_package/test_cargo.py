@@ -88,6 +88,20 @@ class SourceBinariesForTargetTest(unittest.TestCase):
             ["codex-code-mode-host"],
         )
 
+    def test_jaimesh_builds_its_own_entrypoint_and_host(self) -> None:
+        self.assertEqual(
+            source_binaries_for_target(
+                TARGET_SPECS["aarch64-apple-darwin"],
+                PACKAGE_VARIANTS["jaimesh"],
+                build_entrypoint=True,
+                build_code_mode_host=True,
+                build_bwrap=False,
+                build_codex_command_runner=False,
+                build_codex_windows_sandbox_setup=False,
+            ),
+            ["jaimesh", "jaimesh-code-mode-host"],
+        )
+
     def test_build_uses_prebuilt_windows_helpers_without_running_cargo(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

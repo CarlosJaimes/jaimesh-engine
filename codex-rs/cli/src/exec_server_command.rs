@@ -34,7 +34,7 @@ pub(super) struct ExecServerCommand {
     #[command(subcommand)]
     pub(super) command: Option<ExecServerSubcommand>,
 
-    /// Error out when config.toml contains fields that are not recognized by this version of Codex.
+    /// Error out when config.toml contains fields that are not recognized by this version of the agent.
     #[arg(
         id = "exec_server_strict_config",
         long = "strict-config",
@@ -91,7 +91,7 @@ pub(super) struct ExecServerCommand {
     #[arg(long = "name", value_name = "NAME", global = true)]
     pub(super) name: Option<String>,
 
-    /// Use Agent Identity auth from CODEX_ACCESS_TOKEN for remote registration.
+    /// Use Agent Identity auth from an access token for remote registration.
     #[arg(
         long = "use-agent-identity-auth",
         requires = "exec_server_remote",
@@ -135,6 +135,7 @@ pub(super) struct ExecServerCommand {
     /// Exit when the parent-owned standard-input pipe closes.
     #[arg(
         long = "exit-on-stdin-close",
+        hide = true,
         env = codex_exec_server::CODEX_EXEC_SERVER_EXIT_ON_STDIN_CLOSE_ENV_VAR,
         requires_if("true", "exec_server_remote"),
         global = true

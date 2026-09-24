@@ -20,6 +20,8 @@ use toml::Value as TomlValue;
 
 #[cfg(unix)]
 const CODEX_MANAGED_CONFIG_SYSTEM_PATH: &str = "/etc/codex/managed_config.toml";
+#[cfg(unix)]
+const JAIMESH_MANAGED_CONFIG_SYSTEM_PATH: &str = "/etc/jaimesh/managed_config.toml";
 
 #[derive(Debug, Clone)]
 pub(super) struct MangedConfigFromFile {
@@ -223,7 +225,11 @@ pub(super) fn managed_config_default_path(codex_home: &Path) -> PathBuf {
     #[cfg(unix)]
     {
         let _ = codex_home;
-        PathBuf::from(CODEX_MANAGED_CONFIG_SYSTEM_PATH)
+        PathBuf::from(if super::is_jaimesh_process() {
+            JAIMESH_MANAGED_CONFIG_SYSTEM_PATH
+        } else {
+            CODEX_MANAGED_CONFIG_SYSTEM_PATH
+        })
     }
 
     #[cfg(not(unix))]

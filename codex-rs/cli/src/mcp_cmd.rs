@@ -89,7 +89,7 @@ pub struct GetArgs {
 }
 
 #[derive(Debug, clap::Parser)]
-#[command(override_usage = "codex mcp add [OPTIONS] <NAME> (--url <URL> | -- <COMMAND>...)")]
+#[command(override_usage = "jaimesh mcp add [OPTIONS] <NAME> (--url <URL> | -- <COMMAND>...)")]
 pub struct AddArgs {
     /// Name for the MCP server configuration.
     pub name: String,
@@ -528,7 +528,7 @@ async fn run_login(config: &Config, login_args: LoginArgs) -> Result<()> {
 
     if matches!(server.auth, codex_config::types::McpServerAuth::EmaAuth) {
         bail!(
-            "Enterprise MCP authorization is managed by Codex account sign-in. Open Codex to sign in."
+            "Enterprise MCP authorization is managed by account sign-in. Open JaiMesh to sign in."
         );
     }
 
@@ -716,7 +716,7 @@ async fn run_list(config: &Config, list_args: ListArgs) -> Result<()> {
     }
 
     if entries.is_empty() {
-        println!("No MCP servers configured yet. Try `codex mcp add my-tool -- my-command`.");
+        println!("No MCP servers configured yet. Try `jaimesh mcp add my-tool -- my-command`.");
         return Ok(());
     }
 

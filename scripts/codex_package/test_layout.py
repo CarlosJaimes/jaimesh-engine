@@ -82,7 +82,7 @@ class PackageLayoutTest(unittest.TestCase):
                     self.assertEqual(hashlib.sha256(actual[name]).hexdigest(), digest)
 
     def test_macos_package_preserves_prebuilt_resource_binaries(self) -> None:
-        for variant_name in ("codex", "codex-app-server"):
+        for variant_name in ("codex", "codex-app-server", "jaimesh"):
             for target in ("aarch64-apple-darwin", "x86_64-apple-darwin"):
                 with self.subTest(variant=variant_name, target=target):
                     with tempfile.TemporaryDirectory() as temp_dir:
@@ -100,7 +100,7 @@ class PackageLayoutTest(unittest.TestCase):
                                 root / variant.executable_stem
                             ),
                             code_mode_host_bin=touch_executable(
-                                root / "codex-code-mode-host"
+                                root / variant.code_mode_host_stem
                             ),
                             rg_bin=rg_bin,
                             zsh_bin=zsh_bin,
@@ -116,10 +116,12 @@ class PackageLayoutTest(unittest.TestCase):
 
                         self.assertEqual(
                             {
-                                "rg": (package_dir / "codex-path" / "rg").read_bytes(),
+                                "rg": (
+                                    package_dir / variant.path_dirname / "rg"
+                                ).read_bytes(),
                                 "zsh": (
                                     package_dir
-                                    / "codex-resources"
+                                    / variant.resources_dirname
                                     / "zsh"
                                     / "bin"
                                     / "zsh"
@@ -130,6 +132,15 @@ class PackageLayoutTest(unittest.TestCase):
                                 "zsh": b"signed zsh binary",
                             },
                         )
+                        if variant_name == "jaimesh":
+                            self.assertEqual(
+                                [
+                                    path.name
+                                    for path in package_dir.iterdir()
+                                    if "codex" in path.name.lower()
+                                ],
+                                [],
+                            )
 
     def test_app_server_package_places_code_mode_host_beside_entrypoint(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -11,6 +11,12 @@ use std::path::PathBuf;
 /// - If `CODEX_HOME` is not set, this function does not verify that the
 ///   directory exists.
 pub fn find_codex_home() -> std::io::Result<AbsolutePathBuf> {
+    if is_jaimesh_process() {
+        let jaimesh_home_env = std::env::var("JAIMESH_HOME")
+            .ok()
+            .filter(|val| !val.is_empty());
+        return find_home_from_env(jaimesh_home_env.as_deref(), "JAIMESH_HOME", ".jaimesh");
+    }
     let codex_home_env = std::env::var("CODEX_HOME")
         .ok()
         .filter(|val| !val.is_empty());
@@ -18,32 +24,50 @@ pub fn find_codex_home() -> std::io::Result<AbsolutePathBuf> {
 }
 
 fn find_codex_home_from_env(codex_home_env: Option<&str>) -> std::io::Result<AbsolutePathBuf> {
+    find_home_from_env(codex_home_env, "CODEX_HOME", ".codex")
+}
+
+fn is_jaimesh_process() -> bool {
+    std::env::current_exe()
+        .ok()
+        .and_then(|path| {
+            path.file_stem()
+                .map(|stem| stem == "jaimesh" || stem == "jaimesh-code-mode-host")
+        })
+        .unwrap_or(false)
+}
+
+fn find_home_from_env(
+    home_env: Option<&str>,
+    variable_name: &str,
+    default_dirname: &str,
+) -> std::io::Result<AbsolutePathBuf> {
     // Honor the `CODEX_HOME` environment variable when it is set to allow users
     // (and tests) to override the default location.
-    match codex_home_env {
+    match home_env {
         Some(val) => {
             let path = PathBuf::from(val);
             let metadata = std::fs::metadata(&path).map_err(|err| match err.kind() {
                 std::io::ErrorKind::NotFound => std::io::Error::new(
                     std::io::ErrorKind::NotFound,
-                    format!("CODEX_HOME points to {val:?}, but that path does not exist"),
+                    format!("{variable_name} points to {val:?}, but that path does not exist"),
                 ),
                 _ => std::io::Error::new(
                     err.kind(),
-                    format!("failed to read CODEX_HOME {val:?}: {err}"),
+                    format!("failed to read {variable_name} {val:?}: {err}"),
                 ),
             })?;
 
             if !metadata.is_dir() {
                 Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
-                    format!("CODEX_HOME points to {val:?}, but that path is not a directory"),
+                    format!("{variable_name} points to {val:?}, but that path is not a directory"),
                 ))
             } else {
                 let canonical = path.canonicalize().map_err(|err| {
                     std::io::Error::new(
                         err.kind(),
-                        format!("failed to canonicalize CODEX_HOME {val:?}: {err}"),
+                        format!("failed to canonicalize {variable_name} {val:?}: {err}"),
                     )
                 })?;
                 AbsolutePathBuf::from_absolute_path(canonical)
@@ -56,7 +80,7 @@ fn find_codex_home_from_env(codex_home_env: Option<&str>) -> std::io::Result<Abs
                     "Could not find home directory",
                 )
             })?;
-            p.push(".codex");
+            p.push(default_dirname);
             AbsolutePathBuf::from_absolute_path(p)
         }
     }
@@ -65,6 +89,7 @@ fn find_codex_home_from_env(codex_home_env: Option<&str>) -> std::io::Result<Abs
 #[cfg(test)]
 mod tests {
     use super::find_codex_home_from_env;
+    use super::find_home_from_env;
     use codex_utils_absolute_path::AbsolutePathBuf;
     use dirs::home_dir;
     use pretty_assertions::assert_eq;
@@ -130,5 +155,20 @@ mod tests {
         expected.push(".codex");
         let expected = AbsolutePathBuf::from_absolute_path(expected).expect("absolute home");
         assert_eq!(resolved, expected);
+    }
+
+    #[test]
+    fn jaimesh_home_uses_its_own_variable_and_default_directory() {
+        let temp_home = TempDir::new().expect("temp home");
+        let configured = find_home_from_env(temp_home.path().to_str(), "JAIMESH_HOME", ".jaimesh")
+            .expect("configured JaiMesh home");
+        assert_eq!(
+            configured.as_path(),
+            temp_home.path().canonicalize().unwrap()
+        );
+
+        let default =
+            find_home_from_env(None, "JAIMESH_HOME", ".jaimesh").expect("default JaiMesh home");
+        assert_eq!(default.as_path(), home_dir().unwrap().join(".jaimesh"));
     }
 }

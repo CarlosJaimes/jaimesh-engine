@@ -26,6 +26,13 @@ fn config_with_personality(personality: Option<Personality>) -> ModelsManagerCon
 }
 
 #[test]
+fn jaimesh_catalog_instructions_use_product_identity() {
+    let original = "You are Codex. As Codex, use $CODEX_HOME.\nAn app is equivalent to a set of MCP tools within the `codex_apps` MCP.\n";
+    let renamed = jaimesh_instructions(original.to_string());
+    assert_eq!(renamed, "You are JaiMesh. As JaiMesh, use $JAIMESH_HOME.\n");
+}
+
+#[test]
 fn base_instruction_override_is_literal_and_preserves_catalog_messages() {
     let override_instructions = "override {{ personality }}\n# Personality\nKeep me";
     let persistent_instructions = "Follow up on the active task.";

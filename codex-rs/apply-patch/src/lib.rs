@@ -53,11 +53,14 @@ use crate::invocation::ExtractHeredocError;
 /// process-invocation contract for the standalone `apply_patch` command
 /// surface.
 pub const CODEX_CORE_APPLY_PATCH_ARG1: &str = "--codex-run-as-apply-patch";
+pub const JAIMESH_CORE_APPLY_PATCH_ARG1: &str = "--jaimesh-run-as-apply-patch";
 
 /// Internal environment variable used to carry the selected update mode
 /// through the arg0-dispatched standalone executable.
 pub const CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR: &str =
     "CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS";
+pub const JAIMESH_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR: &str =
+    "JAIMESH_APPLY_PATCH_PRESERVE_LINE_ENDINGS";
 
 /// Controls how updates reconstruct the target file after matching a patch.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -89,7 +92,16 @@ impl Default for ApplyPatchOptions {
 /// Reads the update mode selected for an arg0-dispatched `apply_patch` process.
 #[doc(hidden)]
 pub fn apply_patch_file_update_mode_from_env() -> ApplyPatchFileUpdateMode {
-    match std::env::var(CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR).as_deref() {
+    let key = if std::env::current_exe()
+        .ok()
+        .and_then(|path| path.file_stem().map(|stem| stem == "jaimesh"))
+        .unwrap_or(false)
+    {
+        JAIMESH_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR
+    } else {
+        CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR
+    };
+    match std::env::var(key).as_deref() {
         Ok("1") => ApplyPatchFileUpdateMode::PreserveLineEndings,
         _ => ApplyPatchFileUpdateMode::NormalizeToLf,
     }

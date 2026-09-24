@@ -25,6 +25,15 @@ use tokio::task;
 use toml::Value as TomlValue;
 
 const MANAGED_PREFERENCES_APPLICATION_ID: &str = "com.openai.codex";
+const JAIMESH_MANAGED_PREFERENCES_APPLICATION_ID: &str = "com.carlosjaimes.jaimesh";
+
+fn managed_preferences_application_id() -> &'static str {
+    if super::is_jaimesh_process() {
+        JAIMESH_MANAGED_PREFERENCES_APPLICATION_ID
+    } else {
+        MANAGED_PREFERENCES_APPLICATION_ID
+    }
+}
 const MANAGED_PREFERENCES_CONFIG_KEY: &str = "config_toml_base64";
 const MANAGED_PREFERENCES_REQUIREMENTS_KEY: &str = "requirements_toml_base64";
 
@@ -42,7 +51,7 @@ pub(super) struct ManagedAdminConfigLayer {
 
 pub(super) fn managed_preferences_requirements_source() -> RequirementSource {
     RequirementSource::MdmManagedPreferences {
-        domain: MANAGED_PREFERENCES_APPLICATION_ID.to_string(),
+        domain: managed_preferences_application_id().to_string(),
         key: MANAGED_PREFERENCES_REQUIREMENTS_KEY.to_string(),
     }
 }
@@ -138,7 +147,7 @@ pub(super) fn synchronize_managed_preferences() -> io::Result<()> {
     unsafe extern "C" {
         fn CFPreferencesAppSynchronize(application_id: CFStringRef) -> u8;
     }
-    let application_id = CFString::new(MANAGED_PREFERENCES_APPLICATION_ID);
+    let application_id = CFString::new(managed_preferences_application_id());
     if unsafe { CFPreferencesAppSynchronize(application_id.as_concrete_TypeRef()) } == 0 {
         return Err(io::Error::other(
             "Failed to synchronize managed preferences",
@@ -149,7 +158,7 @@ pub(super) fn synchronize_managed_preferences() -> io::Result<()> {
 
 fn load_managed_preference(key_name: &str) -> io::Result<Option<String>> {
     let key = CFString::new(key_name);
-    let application = CFString::new(MANAGED_PREFERENCES_APPLICATION_ID);
+    let application = CFString::new(managed_preferences_application_id());
     load_managed_preference_with(
         key_name,
         || preference_is_forced(&key, &application),
@@ -181,37 +190,30 @@ fn load_managed_preference_with(
     mut is_forced: impl FnMut() -> bool,
     copy_value: impl FnOnce() -> Option<CFType>,
 ) -> io::Result<Option<String>> {
+    let app_id = managed_preferences_application_id();
     // CopyAppValue also searches user-writable domains. Only forced values may
     // supply administrator configuration or override lower requirements layers.
     if !is_forced() {
-        tracing::debug!(
-            "No forced managed preference for {MANAGED_PREFERENCES_APPLICATION_ID} key {key_name}"
-        );
+        tracing::debug!("No forced managed preference for {app_id} key {key_name}");
         return Ok(None);
     }
 
     let Some(value) = copy_value() else {
-        tracing::debug!(
-            "Managed preferences for {MANAGED_PREFERENCES_APPLICATION_ID} key {key_name} not found"
-        );
+        tracing::debug!("Managed preferences for {app_id} key {key_name} not found");
         return Ok(None);
     };
 
     // Reject a user-default fallback if the preference stopped being forced
     // during the read. These separate calls do not form an atomic snapshot.
     if !is_forced() {
-        tracing::debug!(
-            "Managed preference {MANAGED_PREFERENCES_APPLICATION_ID}:{key_name} is no longer forced after reading"
-        );
+        tracing::debug!("Managed preference {app_id}:{key_name} is no longer forced after reading");
         return Ok(None);
     }
 
     let value = value.downcast::<CFString>().ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidData,
-            format!(
-                "Managed preference {MANAGED_PREFERENCES_APPLICATION_ID}:{key_name} must be a string"
-            ),
+            format!("Managed preference {app_id}:{key_name} must be a string"),
         )
     })?;
     Ok(Some(value.to_string()))
@@ -223,8 +225,10 @@ fn parse_managed_config_base64(
     base_dir: &Path,
 ) -> io::Result<ManagedAdminConfigLayer> {
     let raw_toml = decode_managed_preferences_base64(encoded)?;
-    let source_name =
-        format!("{MANAGED_PREFERENCES_APPLICATION_ID}:{MANAGED_PREFERENCES_CONFIG_KEY}");
+    let source_name = format!(
+        "{}:{MANAGED_PREFERENCES_CONFIG_KEY}",
+        managed_preferences_application_id()
+    );
     let parsed = toml::from_str::<TomlValue>(&raw_toml).map_err(|err| {
         tracing::error!("Failed to parse managed config TOML: {err}");
         if strict_config {

@@ -5,6 +5,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use codex_apply_patch::CODEX_CORE_APPLY_PATCH_ARG1;
+use codex_apply_patch::JAIMESH_CORE_APPLY_PATCH_ARG1;
 use codex_async_utils::THREAD_STACK_SIZE_BYTES;
 #[cfg(unix)]
 use codex_exec_server::CODEX_ARG0_EXEC_HELPER_ARG1;
@@ -22,6 +23,8 @@ const APPLY_PATCH_ARG0: &str = "apply_patch";
 const MISSPELLED_APPLY_PATCH_ARG0: &str = "applypatch";
 #[cfg(unix)]
 const EXECVE_WRAPPER_ARG0: &str = "codex-execve-wrapper";
+#[cfg(unix)]
+const JAIMESH_EXECVE_WRAPPER_ARG0: &str = "jaimesh-execve-wrapper";
 const LOCK_FILENAME: &str = ".lock";
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -69,7 +72,7 @@ pub fn arg0_dispatch() -> Option<Arg0PathEntryGuard> {
         .unwrap_or("");
 
     #[cfg(unix)]
-    if exe_name == EXECVE_WRAPPER_ARG0 {
+    if exe_name == EXECVE_WRAPPER_ARG0 || exe_name == JAIMESH_EXECVE_WRAPPER_ARG0 {
         let mut args = std::env::args();
         let _ = args.next();
         let file = match args.next() {
@@ -116,7 +119,7 @@ pub fn arg0_dispatch() -> Option<Arg0PathEntryGuard> {
     if argv1 == CODEX_WINDOWS_SANDBOX_ARG1 {
         codex_windows_sandbox::run_windows_sandbox_wrapper_main();
     }
-    if argv1 == CODEX_CORE_APPLY_PATCH_ARG1 {
+    if argv1 == CODEX_CORE_APPLY_PATCH_ARG1 || argv1 == JAIMESH_CORE_APPLY_PATCH_ARG1 {
         let patch_arg = args.next().and_then(|s| s.to_str().map(str::to_owned));
         let exit_code = match patch_arg {
             Some(patch_arg) => {
@@ -152,7 +155,7 @@ pub fn arg0_dispatch() -> Option<Arg0PathEntryGuard> {
                 }
             }
             None => {
-                eprintln!("Error: {CODEX_CORE_APPLY_PATCH_ARG1} requires a UTF-8 PATCH argument.");
+                eprintln!("Error: {argv1:?} requires a UTF-8 PATCH argument.");
                 1
             }
         };
@@ -299,7 +302,7 @@ fn build_runtime() -> anyhow::Result<tokio::runtime::Runtime> {
     Ok(builder.build()?)
 }
 
-const ILLEGAL_ENV_VAR_PREFIX: &str = "CODEX_";
+const ILLEGAL_ENV_VAR_PREFIXES: &[&str] = &["CODEX_", "JAIMESH_"];
 
 /// Load env vars from ~/.codex/.env.
 ///
@@ -319,7 +322,10 @@ where
     I: IntoIterator<Item = Result<(String, String), dotenvy::Error>>,
 {
     for (key, value) in iter.into_iter().flatten() {
-        if !key.to_ascii_uppercase().starts_with(ILLEGAL_ENV_VAR_PREFIX) {
+        if !ILLEGAL_ENV_VAR_PREFIXES
+            .iter()
+            .any(|prefix| key.to_ascii_uppercase().starts_with(prefix))
+        {
             // It is safe to call set_var() because our process is
             // single-threaded at this point in its execution.
             unsafe { std::env::set_var(&key, &value) };
@@ -344,6 +350,16 @@ fn prepare_path_entry_for_codex_aliases(
     existing_path: Option<OsString>,
 ) -> std::io::Result<(Arg0PathEntryGuard, OsString)> {
     let codex_home = find_codex_home()?;
+    let is_jaimesh = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.file_stem().map(|stem| stem == "jaimesh"))
+        .unwrap_or(false);
+    #[cfg(unix)]
+    let execve_wrapper_name = if is_jaimesh {
+        JAIMESH_EXECVE_WRAPPER_ARG0
+    } else {
+        EXECVE_WRAPPER_ARG0
+    };
     #[cfg(not(debug_assertions))]
     {
         // Guard against placing helpers in system temp directories outside debug builds.
@@ -352,7 +368,7 @@ fn prepare_path_entry_for_codex_aliases(
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
                 format!(
-                    "Refusing to create helper binaries under temporary dir {temp_root:?} (codex_home: {codex_home:?})"
+                    "Refusing to create helper binaries under temporary dir {temp_root:?} (agent_home: {codex_home:?})"
                 ),
             ));
         }
@@ -376,7 +392,11 @@ fn prepare_path_entry_for_codex_aliases(
     }
 
     let temp_dir = tempfile::Builder::new()
-        .prefix("codex-arg0")
+        .prefix(if is_jaimesh {
+            "jaimesh-arg0"
+        } else {
+            "codex-arg0"
+        })
         .tempdir_in(&temp_root)?;
     let path = temp_dir.path();
 
@@ -395,7 +415,7 @@ fn prepare_path_entry_for_codex_aliases(
         #[cfg(target_os = "linux")]
         CODEX_LINUX_SANDBOX_ARG0,
         #[cfg(unix)]
-        EXECVE_WRAPPER_ARG0,
+        execve_wrapper_name,
     ] {
         let exe = std::env::current_exe()?;
 
@@ -413,8 +433,13 @@ fn prepare_path_entry_for_codex_aliases(
                 &batch_script,
                 format!(
                     r#"@echo off
-"{exe}" {CODEX_CORE_APPLY_PATCH_ARG1} %*
+"{exe}" {} %*
 "#,
+                    if is_jaimesh {
+                        JAIMESH_CORE_APPLY_PATCH_ARG1
+                    } else {
+                        CODEX_CORE_APPLY_PATCH_ARG1
+                    },
                 ),
             )?;
         }
@@ -437,7 +462,7 @@ fn prepare_path_entry_for_codex_aliases(
         main_execve_wrapper_exe: {
             #[cfg(unix)]
             {
-                Some(path.join(EXECVE_WRAPPER_ARG0))
+                Some(path.join(execve_wrapper_name))
             }
             #[cfg(not(unix))]
             {

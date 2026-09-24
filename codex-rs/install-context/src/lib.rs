@@ -13,10 +13,29 @@ const CODE_MODE_HOST_EXECUTABLE_NAME: &str = if cfg!(windows) {
 } else {
     "codex-code-mode-host"
 };
+const JAIMESH_CODE_MODE_HOST_EXECUTABLE_NAME: &str = if cfg!(windows) {
+    "jaimesh-code-mode-host.exe"
+} else {
+    "jaimesh-code-mode-host"
+};
+
+fn code_mode_host_executable_name(current_exe: Option<&Path>) -> &'static str {
+    if current_exe
+        .and_then(Path::file_stem)
+        .is_some_and(|stem| stem == "jaimesh")
+    {
+        JAIMESH_CODE_MODE_HOST_EXECUTABLE_NAME
+    } else {
+        CODE_MODE_HOST_EXECUTABLE_NAME
+    }
+}
 const PACKAGE_METADATA_FILENAME: &str = "codex-package.json";
+const JAIMESH_PACKAGE_METADATA_FILENAME: &str = "jaimesh-package.json";
 const PATH_DIRNAME: &str = "codex-path";
+const JAIMESH_PATH_DIRNAME: &str = "jaimesh-path";
 const RELEASES_DIRNAME: &str = "releases";
 const RESOURCES_DIRNAME: &str = "codex-resources";
+const JAIMESH_RESOURCES_DIRNAME: &str = "jaimesh-resources";
 const STANDALONE_PACKAGES_DIRNAME: &str = "standalone";
 const ZSH_DIRNAME: &str = "zsh";
 static INSTALL_CONTEXT: OnceLock<InstallContext> = OnceLock::new();
@@ -143,9 +162,9 @@ impl InstallContext {
     /// Read the manifest for the package that contains the current executable.
     pub fn package_manifest(&self) -> Option<CodexPackageManifest> {
         let package_layout = self.package_layout.as_ref()?;
+        let metadata_name = package_metadata_name(package_layout.package_dir.as_path())?;
         let manifest =
-            std::fs::read_to_string(package_layout.package_dir.join(PACKAGE_METADATA_FILENAME))
-                .ok()?;
+            std::fs::read_to_string(package_layout.package_dir.join(metadata_name)).ok()?;
         serde_json::from_str(&manifest).ok()
     }
 
@@ -174,15 +193,17 @@ impl InstallContext {
     }
 
     pub fn code_mode_host_program(&self) -> PathBuf {
-        // prefer the one packed under codex-resources
-        self.bundled_resource(CODE_MODE_HOST_EXECUTABLE_NAME)
-            .map_or_else(
-                || self.code_mode_host_program_from_exe(std::env::current_exe().ok().as_deref()),
-                AbsolutePathBuf::into_path_buf,
-            )
+        let current_exe = std::env::current_exe().ok();
+        let host_name = code_mode_host_executable_name(current_exe.as_deref());
+        // Prefer the host bundled with the active package.
+        self.bundled_resource(host_name).map_or_else(
+            || self.code_mode_host_program_from_exe(current_exe.as_deref()),
+            AbsolutePathBuf::into_path_buf,
+        )
     }
 
     fn code_mode_host_program_from_exe(&self, current_exe: Option<&Path>) -> PathBuf {
+        let host_name = code_mode_host_executable_name(current_exe);
         let executable_dir = if let Some(package_layout) = &self.package_layout {
             Some(package_layout.bin_dir.clone())
         } else if let InstallMethod::Standalone { release_dir, .. } = &self.method {
@@ -193,7 +214,7 @@ impl InstallContext {
                 .and_then(canonical_absolute_path)
         };
         if let Some(executable_dir) = executable_dir {
-            let executable = executable_dir.join(CODE_MODE_HOST_EXECUTABLE_NAME);
+            let executable = executable_dir.join(host_name);
             if executable.is_file() {
                 return executable.into_path_buf();
             }
@@ -201,8 +222,8 @@ impl InstallContext {
 
         current_exe
             .and_then(Path::parent)
-            .map(|parent| parent.join(CODE_MODE_HOST_EXECUTABLE_NAME))
-            .unwrap_or_else(|| PathBuf::from(CODE_MODE_HOST_EXECUTABLE_NAME))
+            .map(|parent| parent.join(host_name))
+            .unwrap_or_else(|| PathBuf::from(host_name))
     }
 
     pub fn bundled_resource(&self, file_name: impl AsRef<Path>) -> Option<AbsolutePathBuf> {
@@ -249,7 +270,8 @@ impl CodexPackageLayout {
         // WinGet preserves a target-qualified executable at the package root.
         // Only recognize that layout when metadata names this exact executable.
         #[cfg(windows)]
-        if let Ok(contents) = std::fs::read(exe_dir.join(PACKAGE_METADATA_FILENAME))
+        if let Some(metadata_name) = package_metadata_name(exe_dir.as_path())
+            && let Ok(contents) = std::fs::read(exe_dir.join(metadata_name))
             && let Ok(metadata) = serde_json::from_slice::<serde_json::Value>(&contents)
             && metadata["layoutVersion"] == 1
             && metadata["entrypoint"].as_str().map(OsStr::new) == canonical_exe.file_name()
@@ -264,6 +286,10 @@ impl CodexPackageLayout {
         match exe_dir.file_name() {
             Some(name) if name == OsStr::new(BIN_DIRNAME) => Self::from_package_bin_dir(exe_dir),
             Some(name) if name == OsStr::new(RESOURCES_DIRNAME) => {
+                let package_dir = exe_dir.parent()?;
+                Self::from_package_bin_dir(package_dir.join(BIN_DIRNAME))
+            }
+            Some(name) if name == OsStr::new(JAIMESH_RESOURCES_DIRNAME) => {
                 let package_dir = exe_dir.parent()?;
                 Self::from_package_bin_dir(package_dir.join(BIN_DIRNAME))
             }
@@ -288,13 +314,17 @@ impl CodexPackageLayout {
             return None;
         }
         let package_dir = bin_dir.parent()?;
-        if !package_dir.join(PACKAGE_METADATA_FILENAME).is_file() {
-            return None;
-        }
+        let metadata_name = package_metadata_name(package_dir.as_path())?;
+        let (resources_dirname, path_dirname) =
+            if metadata_name == JAIMESH_PACKAGE_METADATA_FILENAME {
+                (JAIMESH_RESOURCES_DIRNAME, JAIMESH_PATH_DIRNAME)
+            } else {
+                (RESOURCES_DIRNAME, PATH_DIRNAME)
+            };
 
         Some(Self {
-            resources_dir: existing_dir(package_dir.join(RESOURCES_DIRNAME)),
-            path_dir: existing_dir(package_dir.join(PATH_DIRNAME)),
+            resources_dir: existing_dir(package_dir.join(resources_dirname)),
+            path_dir: existing_dir(package_dir.join(path_dirname)),
             package_dir,
             bin_dir,
         })
@@ -338,12 +368,27 @@ fn standalone_install_method(
         return None;
     }
 
-    let resources_dir = release_dir.join(RESOURCES_DIRNAME);
+    let resources_dir = package_layout
+        .and_then(|layout| layout.resources_dir.clone())
+        .unwrap_or_else(|| release_dir.join(RESOURCES_DIRNAME));
     Some(InstallMethod::Standalone {
         release_dir,
         resources_dir: resources_dir.is_dir().then_some(resources_dir),
         platform: standalone_platform(),
     })
+}
+
+fn package_metadata_name(package_dir: &Path) -> Option<&'static str> {
+    if package_dir
+        .join(JAIMESH_PACKAGE_METADATA_FILENAME)
+        .is_file()
+    {
+        Some(JAIMESH_PACKAGE_METADATA_FILENAME)
+    } else if package_dir.join(PACKAGE_METADATA_FILENAME).is_file() {
+        Some(PACKAGE_METADATA_FILENAME)
+    } else {
+        None
+    }
 }
 
 fn canonical_absolute_path(path: &Path) -> Option<AbsolutePathBuf> {
@@ -386,6 +431,65 @@ mod tests {
     use std::fs;
 
     const TEST_RESOURCE_NAME: &str = "codex-test-helper";
+
+    #[test]
+    fn jaimesh_uses_its_matching_code_mode_host() -> std::io::Result<()> {
+        let dir = tempfile::tempdir()?;
+        let exe = dir.path().join(if cfg!(windows) {
+            "jaimesh.exe"
+        } else {
+            "jaimesh"
+        });
+        let host = dir.path().join(JAIMESH_CODE_MODE_HOST_EXECUTABLE_NAME);
+        fs::write(&exe, "")?;
+        fs::write(&host, "")?;
+        let context = InstallContext::from_exe(false, Some(&exe), None);
+
+        assert_eq!(
+            context.code_mode_host_program_from_exe(Some(&exe)),
+            host.canonicalize()?
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn jaimesh_package_uses_branded_metadata_and_directories() -> std::io::Result<()> {
+        let package = tempfile::tempdir()?;
+        let bin = package.path().join(BIN_DIRNAME);
+        let resources = package.path().join(JAIMESH_RESOURCES_DIRNAME);
+        let path_dir = package.path().join(JAIMESH_PATH_DIRNAME);
+        fs::create_dir(&bin)?;
+        fs::create_dir(&resources)?;
+        fs::create_dir(&path_dir)?;
+        fs::write(
+            package.path().join(JAIMESH_PACKAGE_METADATA_FILENAME),
+            r#"{"version":"1.2.3"}"#,
+        )?;
+        let exe = bin.join(if cfg!(windows) {
+            "jaimesh.exe"
+        } else {
+            "jaimesh"
+        });
+        fs::write(&exe, "")?;
+        let context = InstallContext::from_exe(false, Some(&exe), None);
+        let layout = context
+            .package_layout
+            .as_ref()
+            .expect("JaiMesh package layout");
+        assert_eq!(
+            layout.resources_dir.as_ref().unwrap().as_path(),
+            resources.canonicalize()?
+        );
+        assert_eq!(
+            layout.path_dir.as_ref().unwrap().as_path(),
+            path_dir.canonicalize()?
+        );
+        assert_eq!(
+            context.package_manifest().unwrap().version.to_string(),
+            "1.2.3"
+        );
+        Ok(())
+    }
 
     #[test]
     fn code_mode_host_program_prefers_package_resource_over_legacy_binary() -> std::io::Result<()> {

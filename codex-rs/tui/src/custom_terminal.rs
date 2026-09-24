@@ -1080,7 +1080,7 @@ mod tests {
                         Line::from(vec![
                             "›".bold(),
                             " ".into(),
-                            "Ask Codex to do anything".dim(),
+                            crate::prompt_placeholder().dim(),
                         ]),
                     ])
                     .render(frame.area(), frame.buffer_mut());
