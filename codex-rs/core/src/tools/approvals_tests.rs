@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 use super::*;
 use crate::session::tests::make_session_and_context_with_rx;
 use codex_models_manager::model_info::model_info_from_slug;
@@ -176,6 +177,78 @@ async fn non_utf8_cwd_preserves_approval_routing(
     };
     assert_eq!(approval.await, expected);
     assert!(events.try_recv().is_err());
+    Ok(())
+}
+
+#[tokio::test]
+async fn patch_approval_with_same_reason_reuses_session_decision() -> anyhow::Result<()> {
+    let (session, turn, events) = make_session_and_context_with_rx().await;
+    *session.active_turn.lock().await = Some(crate::state::ActiveTurn::default());
+    let mut review_context = GuardianReviewContext::from(&turn);
+    review_context.approval_policy = AskForApproval::OnRequest;
+    review_context.approvals_reviewer = ApprovalsReviewer::User;
+    let file = PathUri::from_abs_path(&AbsolutePathBuf::try_from(PathBuf::from(
+        "/tmp/jaimesh-approval-cache.txt",
+    ))?);
+    let make_action = |id: &str| ApprovalAction::ApplyPatch {
+        id: id.to_string(),
+        environment_id: codex_exec_server::LOCAL_ENVIRONMENT_ID.to_string(),
+        cwd: file.clone(),
+        files: vec![file.clone()],
+        patch: String::new(),
+        changes: Arc::new(HashMap::new()),
+        permissions_preapproved: false,
+    };
+    let make_context = |id: &str, reason: &str| ApprovalContext {
+        review_context: review_context.clone(),
+        cancellation_token: None,
+        call_id: id.to_string(),
+        tool_name: ToolName::plain("apply_patch"),
+        strict_auto_review: false,
+        approval_reason: Some(reason.to_string()),
+        retry_reason: None,
+        network_approval_context: None,
+    };
+
+    let first_action = make_action("patch-1");
+    let first_context = make_context("patch-1", "outside sandbox");
+    let first = session.request_user_approval(&first_action, &first_context);
+    tokio::pin!(first);
+    tokio::select! {
+        result = &mut first => panic!("expected first approval request, got {result:?}"),
+        event = events.recv() => {
+            let codex_protocol::protocol::EventMsg::ApplyPatchApprovalRequest(request) = event.expect("first approval event").msg else {
+                panic!("expected patch approval request");
+            };
+            session.notify_approval(&request.call_id, ReviewDecision::ApprovedForSession).await;
+        }
+    }
+    assert_eq!(first.await, ReviewDecision::ApprovedForSession);
+    let repeated_action = make_action("patch-2");
+    let repeated_context = make_context("patch-2", "outside sandbox");
+    let repeated = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        session.request_user_approval(&repeated_action, &repeated_context),
+    )
+    .await
+    .expect("same file and reason should reuse session approval");
+    assert_eq!(repeated, ReviewDecision::ApprovedForSession);
+    assert!(events.try_recv().is_err());
+
+    let changed_action = make_action("patch-3");
+    let changed_context = make_context("patch-3", "new permission reason");
+    let changed_reason = session.request_user_approval(&changed_action, &changed_context);
+    tokio::pin!(changed_reason);
+    tokio::select! {
+        result = &mut changed_reason => panic!("different reason should prompt, got {result:?}"),
+        event = events.recv() => {
+            let codex_protocol::protocol::EventMsg::ApplyPatchApprovalRequest(request) = event.expect("second approval event").msg else {
+                panic!("expected another patch approval request");
+            };
+            session.notify_approval(&request.call_id, ReviewDecision::Approved).await;
+        }
+    }
+    assert_eq!(changed_reason.await, ReviewDecision::Approved);
     Ok(())
 }
 

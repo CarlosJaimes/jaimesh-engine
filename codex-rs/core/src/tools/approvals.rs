@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 //! Central approval policy-stage execution and reviewer routing.
 
 use crate::command_canonicalization::canonicalize_command_for_approval;
@@ -802,32 +803,23 @@ impl Session {
                 if *permissions_preapproved && reason.is_none() {
                     return ReviewDecision::Approved;
                 }
-                if reason.is_some() {
-                    return self
-                        .request_patch_approval(
-                            ctx.review_context.turn(),
-                            ctx.call_id.clone(),
-                            changes.as_ref().clone(),
-                            reason,
-                            /*grant_root*/ None,
-                        )
-                        .await;
-                }
-                with_cached_approval(
-                    &self.services,
-                    "apply_patch",
-                    action.cache_keys(),
-                    || async {
-                        self.request_patch_approval(
-                            ctx.review_context.turn(),
-                            ctx.call_id.clone(),
-                            changes.as_ref().clone(),
-                            /*reason*/ None,
-                            /*grant_root*/ None,
-                        )
-                        .await
-                    },
-                )
+                // A new reason still requires approval, but repeating the same reason for
+                // the same files should honor an earlier session-scoped decision.
+                let cache_keys = action
+                    .cache_keys()
+                    .into_iter()
+                    .map(|key| (key, reason.clone()))
+                    .collect();
+                with_cached_approval(&self.services, "apply_patch", cache_keys, || async {
+                    self.request_patch_approval(
+                        ctx.review_context.turn(),
+                        ctx.call_id.clone(),
+                        changes.as_ref().clone(),
+                        reason,
+                        /*grant_root*/ None,
+                    )
+                    .await
+                })
                 .await
             }
             ApprovalAction::McpToolCall { .. } => {
