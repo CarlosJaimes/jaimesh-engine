@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 pub use codex_apply_patch::CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR;
 use codex_apply_patch::JAIMESH_APPLY_PATCH_PRESERVE_LINE_ENDINGS_ENV_VAR;
 use codex_features::Feature;

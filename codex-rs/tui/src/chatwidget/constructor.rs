@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 //! Construction and initial wiring for `ChatWidget`.
 
 use super::*;

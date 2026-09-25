@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 //! CLI handling for local state database startup failures.
 //!
 //! This keeps user-facing backup and lock-contention handling out of the main

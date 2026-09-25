@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 //! CLI login commands and their direct-user observability surfaces.
 //!
 //! The TUI path already installs a broader tracing stack with feedback, OpenTelemetry, and other

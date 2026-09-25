@@ -1,3 +1,4 @@
+# Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 """Supported package targets and default binary discovery."""
 
 import os

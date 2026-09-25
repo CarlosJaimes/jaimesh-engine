@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 //! Support for `-c key=value` overrides shared across Codex CLI tools.
 //!
 //! This module provides a [`CliConfigOverrides`] struct that can be embedded

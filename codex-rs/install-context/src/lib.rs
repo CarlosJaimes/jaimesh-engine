@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 use std::ffi::OsStr;
 use std::path::Path;
 use std::path::PathBuf;

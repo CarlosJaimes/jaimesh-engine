@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 //! Default Codex HTTP client: shared `User-Agent`, `originator`, optional residency header, and
 //! HTTP client and transport construction.
 //!

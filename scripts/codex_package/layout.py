@@ -1,3 +1,4 @@
+# Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 """Canonical Codex package directory layout."""
 
 import json

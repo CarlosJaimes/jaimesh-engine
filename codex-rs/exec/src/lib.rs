@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 // - In the default output mode, it is paramount that the only thing written to
 //   stdout is the final message (if any).
 // - In --json mode, stdout must be valid JSONL, one event per line.

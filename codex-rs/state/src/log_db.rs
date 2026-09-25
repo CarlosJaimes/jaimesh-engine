@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 //! Tracing log export into the local SQLite log database.
 //!
 //! This module provides a `tracing_subscriber::Layer` that captures events,

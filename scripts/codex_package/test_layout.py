@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 
 from pathlib import Path
 import hashlib

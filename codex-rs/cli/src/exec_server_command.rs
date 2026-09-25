@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 //! Command-line startup for `codex exec-server`.
 //!
 //! Transport, configuration, authentication, and shutdown are kept together.

@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 //! Keep the first composer editable and bottom-anchored while startup work continues.
 //! Submit keys confirm one draft locally; session dispatch waits for the protected handoff.
 

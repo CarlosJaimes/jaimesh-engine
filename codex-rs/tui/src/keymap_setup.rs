@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 //! Guided keymap remapping UI for `/keymap`.
 //!
 //! This module owns the interactive editing flow that starts from a resolved

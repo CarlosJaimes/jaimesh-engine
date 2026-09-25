@@ -1,3 +1,4 @@
+# Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 """Command-line interface for building Codex package directories."""
 
 import argparse

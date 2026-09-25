@@ -1,3 +1,4 @@
+# Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 """Cargo builds for source-built Codex package artifacts."""
 
 import os

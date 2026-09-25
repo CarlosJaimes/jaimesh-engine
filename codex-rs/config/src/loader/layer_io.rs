@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 #[cfg(target_os = "macos")]
 use super::macos::ManagedAdminConfigLayer;
 #[cfg(target_os = "macos")]

@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 //! Session headers, onboarding guidance, and transcript cards.
 
 use super::*;

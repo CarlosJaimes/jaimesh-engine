@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 use rand::Rng;
 use std::cmp::Reverse;
 use std::collections::HashMap;

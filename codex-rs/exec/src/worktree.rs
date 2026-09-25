@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 //! Resolves managed fork sources through the existing name/ID lookup before final configuration.
 //! The temporary app-server never starts a thread or executes a turn.
 

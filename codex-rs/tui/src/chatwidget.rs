@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 //! The main Codex TUI chat surface.
 //!
 //! `ChatWidget` consumes protocol events, builds and updates history cells, and drives rendering

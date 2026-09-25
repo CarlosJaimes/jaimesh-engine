@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 //! Loads administrator configuration only from forced macOS preferences.
 //!
 //! Ordinary user defaults must never become trusted managed configuration layers.

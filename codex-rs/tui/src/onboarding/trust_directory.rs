@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 //! Folder trust disclosure with bounded paths, shared picker styling, and protected selection.
 
 use std::path::Path;

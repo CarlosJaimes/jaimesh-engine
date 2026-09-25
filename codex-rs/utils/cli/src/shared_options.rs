@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 //! Shared command-line flags used by both interactive and non-interactive Codex entry points.
 
 use crate::CliConfigOverrides;

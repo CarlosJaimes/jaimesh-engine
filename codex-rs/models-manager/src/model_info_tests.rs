@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 use super::*;
 use crate::ModelsManagerConfig;
 use codex_prompts::render_model_instructions;

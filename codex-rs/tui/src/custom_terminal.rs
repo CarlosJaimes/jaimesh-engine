@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 // This is derived from `ratatui::Terminal`, which is licensed under the following terms:
 //
 // The MIT License (MIT)

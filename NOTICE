@@ -4,3 +4,10 @@ Copyright 2025 OpenAI
 This project includes code derived from [Ratatui](https://github.com/ratatui/ratatui), licensed under the MIT license.
 Copyright (c) 2016-2022 Florian Dehau
 Copyright (c) 2023-2025 The Ratatui Developers
+
+JaiMesh fork
+Modified by JaiMesh contributors in 2026 from the OpenAI Codex NOTICE.
+Modifications Copyright 2026 Carlos Jaimes
+The JaiMesh fork modifies runtime identity, package layout, local state
+handling, selected commands and prompts. Changed source files carry
+individual modification notices. JaiMesh is independent of OpenAI.

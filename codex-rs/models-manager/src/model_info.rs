@@ -1,3 +1,4 @@
+// Modified by JaiMesh contributors in 2026 from the OpenAI Codex source.
 use codex_protocol::config_types::Personality;
 use codex_protocol::config_types::ReasoningSummary;
 use codex_protocol::openai_models::ConfigShellToolType;
